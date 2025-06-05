@@ -4,16 +4,18 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-darkgreen.svg)](LICENSE)
 [![GitHub Repo](https://img.shields.io/badge/source-GitHub-black?logo=github)](https://github.com/MykolaVuy/ForecastRegressions)
 
-A simple and extensible library for forecasting missing data points using different regression models: **Linear**, **Power**, and **Logarithmic**. Designed for PHP 8.1+.
+A simple and extensible library for forecasting missing data points using different regression models: **Linear**, **Power**, **Logarithmic**, and **Exponential**. Designed for PHP 8.1+.
 
 ---
 
 ## ✨ Features
 
-- 📊 Supports **Linear**, **Power**, and **Logarithmic** regression.
-- 🔍 Optional interpolation mode.
-- ✅ Unit-tested and reliable.
-- 🧩 Pluggable architecture via interface.
+- 📊 Supports **Linear**, **Power**, **Logarithmic**, and **Exponential** regression.
+- 🔍 Optional **interpolation-only** mode to avoid extrapolation.
+- 🧩 Pluggable architecture via `RegressionInterface`.
+- ⚡️ Fast, simple, and **stateless static prediction**:  
+  `ForecastService::predict($data, $method)`
+- ✅ Thoroughly unit-tested.
 
 ---
 
@@ -47,23 +49,26 @@ $data = [
 
 $service = new ForecastService();
 
-// Forecast using linear regression
+// Linear regression forecast
 $result = $service->forecast($data, method: 'linear');
 
 // Power regression with interpolation only
 $interpolated = $service->forecast($data, method: 'power', interpolateOnly: true);
 
+// 🔹 Static call (no instance needed)
+$static = ForecastService::predict($data, method: 'exponential');
 ```
 
 ---
 
 ## 🔧 Regression Methods
 
-| Method        | Description                           |
-|---------------|---------------------------------------|
-| `linear`      | Straight-line fitting (y = ax + b)    |
-| `power`       | Exponential growth/decay (y = ax^b)   |
-| `logarithmic` | Log curve fitting (y = a + b\*log(x)) |
+| Method         | Formula            | Description                    |
+|----------------|--------------------|--------------------------------|
+| `linear`       | y = a * x + b      | Straight-line fitting          |
+| `power`        | y = a * x^b        | Exponential-style growth/decay |
+| `logarithmic`  | y = a + b * log(x) | Logarithmic trend modeling     |
+| `exponential`  | y = a * e^(b * x)  | Classic exponential regression |
 
 ---
 
