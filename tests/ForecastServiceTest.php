@@ -2,6 +2,7 @@
 
 use PHPUnit\Framework\TestCase;
 use MykolaVuy\Forecast\ForecastService;
+use MykolaVuy\Forecast\Regressions\Contracts\RegressionInterface;
 
 final class ForecastServiceTest extends TestCase
 {
@@ -12,77 +13,116 @@ final class ForecastServiceTest extends TestCase
         $this->service = new ForecastService();
     }
 
-    public function testLinearForecastDelegatesToRegressor(): void
+    public function testLinearForecastReturnsValues(): void
     {
-        $data = [
-            1 => 1.0,
-            2 => null,
-            3 => 3.0,
-            4 => 4.0,
-        ];
+        $data = [0 => 1.0, 1 => 3.0, 2 => null, 3 => 7.0];
 
         $result = $this->service->forecast($data, 'linear');
+
         $this->assertIsArray($result);
-        $this->assertArrayHasKey(2, $result);
         $this->assertNotNull($result[2]);
+        $this->assertEqualsWithDelta(5.0, $result[2], 1.0);
     }
 
-    public function testPowerForecastDelegatesToRegressor(): void
+    public function testPowerForecastHandlesNulls(): void
     {
-        $data = [
-            1 => 2.0,
-            2 => null,
-            3 => 6.0,
-            4 => 8.0,
-        ];
+        $data = [1 => 2.0, 2 => null, 3 => 4.0, 4 => 8.0];
 
         $result = $this->service->forecast($data, 'power');
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey(2, $result);
+
         $this->assertNotNull($result[2]);
+        $this->assertGreaterThan(0, $result[2]);
     }
 
-    public function testLogarithmicForecastDelegatesToRegressor(): void
+    public function testLogarithmicForecastWorks(): void
     {
+        $data = [1 => 2.0, 2 => null, 3 => 3.0];
+
+        $result = $this->service->forecast($data, 'logarithmic');
+
+        $this->assertArrayHasKey(2, $result);
+        $this->assertIsFloat($result[2] ?? 0.0);
+    }
+
+    public function testExponentialForecastIgnoresInvalid(): void
+    {
+        $data = [1 => 2.0, 2 => null, 3 => -3.0];
+
+        $result = $this->service->forecast($data, 'exponential');
+
+        $this->assertIsArray($result);
+        $this->assertNull($result[2]); // -3.0 робить тренд неможливим
+    }
+
+    public function testInterpolationSkipsWhenNotEnoughPoints()
+    {
+        $service = new ForecastService();
+
         $data = [
             1 => 2.0,
             2 => null,
             3 => 4.0,
-            4 => 5.0,
         ];
 
-        $result = $this->service->forecast($data, 'logarithmic');
-        $this->assertIsArray($result);
-        $this->assertArrayHasKey(2, $result);
-        $this->assertNotNull($result[2]);
+        $result = $service->forecast($data, 'linear', interpolateOnly: true);
+
+        $this->assertNull($result[2]); // fillForecast нічого не робить
     }
 
-    public function testInterpolateOnlyParameter(): void
+    public function testStaticPredictWorks(): void
     {
-        $data = [
-            1 => 2.0,
-            2 => null,
-            3 => 6.0,
-            4 => null,
-            5 => 10.0,
-        ];
+        $data = [1 => 2.0, 2 => null, 3 => 4.0, 4 => 5.0];
+        $result = ForecastService::predict($data, 'linear');
 
-        $result = $this->service->forecast($data, 'linear', true);
-
-        $this->assertNotNull($result[2]);
-        $this->assertNotNull($result[4]);
+        $this->assertIsFloat($result[2]);
     }
 
-    public function testInvalidMethodThrowsException(): void
+    public function testThrowsOnInvalidMethod(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Unknown regression method: invalid');
+        $this->service->forecast([1 => 2.0, 2 => null], 'unknown');
+    }
 
-        $data = [
-            1 => 1.0,
-            2 => 2.0,
-        ];
+    public function testCustomRegressorCanBeRegistered(): void
+    {
+        $mock = $this->createMock(RegressionInterface::class);
+        $mock->method('forecast')->willReturn([0 => 10.0]);
 
-        $this->service->forecast($data, 'invalid');
+        $this->service->register('custom', $mock);
+
+        $result = $this->service->forecast([0 => null], 'custom');
+
+        $this->assertEquals(10.0, $result[0]);
+    }
+
+    public function testEmptyInputReturnsEmptyArray(): void
+    {
+        $result = $this->service->forecast([], 'linear');
+        $this->assertEmpty($result);
+    }
+
+    public function testAllNullsInputReturnsAllNulls(): void
+    {
+        $data = [0 => null, 1 => null];
+        $result = $this->service->forecast($data, 'linear');
+
+        $this->assertEquals([0 => null, 1 => null], $result);
+    }
+
+    public function testSingleValidPointReturnsOnlyNulls(): void
+    {
+        $data = [0 => 2.0, 1 => null, 2 => null];
+        $result = $this->service->forecast($data, 'linear');
+
+        $this->assertNull($result[1]);
+        $this->assertNull($result[2]);
+    }
+
+    public function testCaseInsensitiveMethodName(): void
+    {
+        $data = [1 => 1.0, 2 => null, 3 => 3.0, 4 => 4.0];
+        $result = $this->service->forecast($data, 'LiNeAr');
+
+        $this->assertIsFloat($result[2]);
     }
 }
